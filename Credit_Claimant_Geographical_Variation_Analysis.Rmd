@@ -1,0 +1,303 @@
+---
+title: "Credit_Claimant_Geographical_Variation_Analysis"
+output: html_document
+---
+```{r}
+library (plyr)
+library(tidyverse)
+library(magrittr)
+library(dplyr)
+```
+
+## Import Data
+
+Import mid-2019 population estimates by age and region (including local authority) data.
+```{r}
+populationData2019 <- read.csv("UK_Population_Data_xAge_xRegion.csv")
+```
+
+Import 2011 census population counts by age and region
+```{r}
+censusData2011 <- read.csv("UK_Population_Data_2011_Census_xAge_xRegion.csv")
+```
+
+Import 2011 census 'out of term' population counts by age and region.
+
+(Out of term data adjusted the 2011 census counts to move students to their home addresses.)
+```{r}
+censusOutOfTermData2011 <- read.csv("UK_Population_Data_2011_Census_Out_Of_Term_xAge_xRegion.csv")
+```
+
+Import data on the alternative claimant count by age and local authority.
+```{r}
+altClaimantCount <- read.csv("Combined_Alt_Claimant_Count_Data_xAge_xRegion_xMonth.csv")
+```
+
+Import local authority names and codes data.
+```{r}
+laCodesNames <- read.csv("LA_Names_And_Codes_2019.csv")
+
+names(laCodesNames)[names(laCodesNames) == 'ï..LA_Code'] <- 'LA_Code'
+```
+
+## Establish a common age category
+
+Create lists of unique Age values for each dataframe.
+```{r}
+populationData2019UniqueAge <- unique(populationData2019$Age, incomparables = FALSE)
+
+censusData2011UniqueAge <- unique(censusData2011$Age, incomparables = FALSE)
+
+censusOutOfTermData2011UniqueAge <- unique(censusOutOfTermData2011$Age, incomparables = FALSE)
+
+altClaimantCountUniqueAge <- unique(altClaimantCount$Age, incomparables = FALSE)
+```
+
+Combine lists of uniqe Age valules into a single dataframe.
+```{r}
+ageCategoryLookup <- ldply(altClaimantCountUniqueAge, data.frame)
+
+names(ageCategoryLookup)[names(ageCategoryLookup) == 'X..i..'] <- 'Age'
+
+ageCategoryLookup <- subset(ageCategoryLookup,!(Age == "All"))
+
+populationData2019UniqueAgeDF <- ldply(populationData2019UniqueAge, data.frame)
+names(populationData2019UniqueAgeDF)[names(populationData2019UniqueAgeDF) == 'X..i..'] <- 'Age'
+
+censusData2011UniqueAgeDF <- ldply(censusData2011UniqueAge, data.frame)
+names(censusData2011UniqueAgeDF)[names(censusData2011UniqueAgeDF) == 'X..i..'] <- 'Age'
+
+censusOutOfTermData2011UniqueAgeDF <- ldply(censusOutOfTermData2011UniqueAge, data.frame)
+names(censusOutOfTermData2011UniqueAgeDF)[names(censusOutOfTermData2011UniqueAgeDF) == 'X..i..'] <- 'Age'
+
+
+ageCategoryLookup <- merge(ageCategoryLookup, populationData2019UniqueAgeDF, by=c('Age'), all=TRUE )
+ageCategoryLookup <- merge(ageCategoryLookup, censusData2011UniqueAgeDF, by=c('Age'), all=TRUE )
+ageCategoryLookup <- merge(ageCategoryLookup, censusOutOfTermData2011UniqueAgeDF, by=c('Age'), all=TRUE )
+```
+
+Create a lookup category for Age
+```{r}
+ageCategoryLookup$AgeCategory <- ageCategoryLookup$Age
+
+ageCategoryLookup$AgeCategory[as.numeric(ageCategoryLookup$Age) > 65] <- "Over 65"
+ageCategoryLookup$AgeCategory[as.numeric(ageCategoryLookup$Age) < 18] <- "Under 18"
+
+ageCategoryLookup$AgeCategory[ageCategoryLookup$Age %in% c("100+", "85+", "90+")] <- "Over 65"
+
+ageCategoryLookup <- ageCategoryLookup[order(as.numeric(ageCategoryLookup$Age)),]
+
+rm(populationData2019UniqueAge)
+rm(populationData2019UniqueAgeDF)
+rm(censusData2011UniqueAge)
+rm(censusData2011UniqueAgeDF)
+rm(censusOutOfTermData2011UniqueAge)
+rm(censusOutOfTermData2011UniqueAgeDF)
+rm(altClaimantCountUniqueAge)
+rm(i)
+
+```
+
+## Establish a common local authority category
+
+Create a list of unique region locations for each dataframe. 
+```{r}
+populationData2019UniqueLA <- unique(populationData2019$Code, incomparables = FALSE)
+
+censusData2011UniqueLA <- unique(censusData2011$Code, incomparables = FALSE)
+
+censusOutOfTermData2011UniqueLA <- unique(censusOutOfTermData2011$Code, incomparables = FALSE)
+
+altClaimantCountUniqueLAName <- unique(altClaimantCount$LA_Name, incomparables = FALSE)
+```
+
+Create a lookup between my list of LA codes and names and my claimant count data
+```{r}
+altClaimantCountUniqueLANameDF <- ldply(altClaimantCountUniqueLAName, data.frame)
+
+names(altClaimantCountUniqueLANameDF)[names(altClaimantCountUniqueLANameDF) == 'X..i..'] <- 'LA_Name'
+
+altClaimantCountUniqueLANameDF <- merge(altClaimantCountUniqueLANameDF, laCodesNames, by.x='LA_Name', by.y='LA_Name', all.x = TRUE)
+
+altClaimantCountUniqueLANameDF <- merge(altClaimantCountUniqueLANameDF, laCodesNames, by.x='LA_Code', by.y='LA_Code', all.x = TRUE)
+
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Monmouthshire / Sir Fynwy"] <- "W06000021"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Flintshire / Sir y Fflint"] <- "W06000005"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Neath Port Talbot / Castell-nedd Port Talbot"] <- "W06000012"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Wrexham / Wrecsam"] <- "W06000006"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Rhondda Cynon Taf / Rhondda Cynon Taf"] <- "W06000016"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Pembrokeshire / Sir Benfro"] <- "W06000009"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Caerphilly / Caerffili"] <- "W06000018"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Newport / Casnewydd"] <- "W06000022"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Ceredigion / Ceredigion"] <- "W06000008"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Powys / Powys"] <- "W06000023"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Cardiff / Caerdydd"] <- "W06000015"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Blaenau Gwent / Blaenau Gwent"] <- "W06000019"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Gwynedd / Gwynedd"] <- "W06000002"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Isle of Anglesey / Ynys Môn"] <- "W06000001"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Swansea / Abertawe"] <- "W06000011"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Torfaen / Tor-faen"] <- "W06000020"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Conwy / Conwy"] <- "W06000003"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Denbighshire / Sir Ddinbych"] <- "W06000004"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Merthyr Tydfil / Merthyr Tudful"] <- "W06000024"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Bridgend / Pen-y-bont ar Ogwr"] <- "W06000013"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Carmarthenshire / Sir Gaerfyrddin"] <- "W06000010"
+altClaimantCountUniqueLANameDF$LA_Code[altClaimantCountUniqueLANameDF$LA_Name.x == "Vale of Glamorgan / Bro Morgannwg"] <- "W06000014"
+
+altClaimantCountUniqueLANameDF <- merge(altClaimantCountUniqueLANameDF, laCodesNames, by.x='LA_Code', by.y='LA_Code', all.x = TRUE)
+
+altClaimantCountUniqueLANameDF <- subset(altClaimantCountUniqueLANameDF, select = -c(LA_Name.y))
+
+
+names(altClaimantCountUniqueLANameDF)[names(altClaimantCountUniqueLANameDF) == 'LA_Name'] <- 'LA_Name_Lookup'
+names(altClaimantCountUniqueLANameDF)[names(altClaimantCountUniqueLANameDF) == 'LA_Name.x'] <- 'LA_Name'
+
+censusData2011UniqueLADF <- ldply(censusData2011UniqueLA, data.frame)
+
+altClaimantCountUniqueLANameDF <- merge(altClaimantCountUniqueLANameDF, laCodesNames, by.x='LA_Name', by.y='LA_Name', all.x = TRUE)
+
+altClaimantCountUniqueLANameDF <- subset(altClaimantCountUniqueLANameDF, select = -c(LA_Code.y))
+names(altClaimantCountUniqueLANameDF)[names(altClaimantCountUniqueLANameDF) == 'LA_Code.x'] <- 'LA_Code'
+
+```
+
+Create a lookup between my list of LA codes and names and my 2011 census data. 
+
+(2011 Out of Term data is provided for the same local authorities so this lookup table will be sufficient for that data too.)
+```{r}
+censusData2011UniqueLADF <- ldply(censusData2011UniqueLA, data.frame)
+
+names(censusData2011UniqueLADF)[names(censusData2011UniqueLADF) == 'X..i..'] <- 'LA_Code'
+
+censusData2011UniqueLADF <- merge(censusData2011UniqueLADF, laCodesNames, by.x='LA_Code', by.y='LA_Code', all.x = TRUE)
+
+names(censusData2011UniqueLADF)[names(censusData2011UniqueLADF) == 'LA_Name'] <- 'LA_Name_Lookup'
+
+censusData2011UniqueLADF <- merge(censusData2011UniqueLADF, unique(censusData2011[ , c("Code", "Name")], incomparables = FALSE), by.x='LA_Code', by.y='Code', all.x = TRUE)
+
+censusData2011UniqueLADF$LA_Code_Lookup <- censusData2011UniqueLADF$LA_Code
+
+censusData2011UniqueLADF$LA_Code_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E06000028","E06000029","E07000048")] <- "E06000058"
+
+censusData2011UniqueLADF$LA_Code_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E07000049","E07000050","E07000051","E07000052","E07000053")] <- "E06000059"
+
+censusData2011UniqueLADF$LA_Code_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E07000190","E07000191")] <- "E07000246"
+
+censusData2011UniqueLADF$LA_Code_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E07000201","E07000204")] <- "E07000245"
+
+censusData2011UniqueLADF$LA_Code_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E07000205","E07000206")] <- "E07000244"
+
+censusData2011UniqueLADF <- merge(censusData2011UniqueLADF, laCodesNames, by.x='LA_Code_Lookup', by.y='LA_Code', all.x = TRUE)
+
+censusData2011UniqueLADF <- subset(censusData2011UniqueLADF, select = -c(LA_Name_Lookup))
+
+names(censusData2011UniqueLADF)[names(censusData2011UniqueLADF) == 'LA_Name'] <- 'LA_Name_Lookup'
+
+```
+
+Create a lookup between my list of LA codes and the 2019 population data.
+```{r}
+populationData2019UniqueLADF <- ldply(populationData2019UniqueLA, data.frame)
+
+names(populationData2019UniqueLADF)[names(populationData2019UniqueLADF) == 'X..i..'] <- 'LA_Code'
+
+populationData2019UniqueLADF <- merge(populationData2019UniqueLADF, laCodesNames, by.x='LA_Code', by.y='LA_Code', all.x = TRUE)
+
+names(populationData2019UniqueLADF)[names(populationData2019UniqueLADF) == 'LA_Name'] <- 'LA_Name_Lookup'
+
+populationData2019UniqueLADF <- merge(populationData2019UniqueLADF, unique(populationData2019[ , c("Code", "Name")], incomparables = FALSE), by.x='LA_Code', by.y='Code', all.x = TRUE)
+
+populationData2019UniqueLADF$LA_Code_Lookup <- populationData2019UniqueLADF$LA_Code
+
+populationData2019UniqueLADF$LA_Name_Lookup[populationData2019UniqueLADF$Name == "Buckinghamshire"] <- "Buckinghamshire"
+```
+
+The 2019 population data uses the new combined 'Buckinghamshire' local authority. Therefore, I need to combine these LAs in the lookups for the other data tables.
+```{r}
+censusData2011UniqueLADF$LA_Code_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E07000006", "E07000005", "E07000007", "E07000004")] <- "E06000060"
+censusData2011UniqueLADF$LA_Name_Lookup[censusData2011UniqueLADF$LA_Code %in% c("E07000006", "E07000005", "E07000007", "E07000004")] <- "Buckinghamshire"
+
+altClaimantCountUniqueLANameDF$LA_Code_Lookup <- altClaimantCountUniqueLANameDF$LA_Code
+
+altClaimantCountUniqueLANameDF$LA_Code_Lookup[altClaimantCountUniqueLANameDF$LA_Code %in% c("E07000006", "E07000005", "E07000007", "E07000004")] <- "E06000060"
+altClaimantCountUniqueLANameDF$LA_Name_Lookup[altClaimantCountUniqueLANameDF$LA_Code %in% c("E07000006", "E07000005", "E07000007", "E07000004")] <- "Buckinghamshire"
+
+```
+
+## Filter Alternative Claimant Count data to only include months for the past year and claimants aged 18-29
+
+Also, I remove suppressed figures (due to low numbers) from my counts. This means that I will under count the number of claimants by a very small amount.
+```{r}
+altClaimantCount <- merge(altClaimantCount, subset(altClaimantCountUniqueLANameDF, select = c(LA_Name_Lookup, LA_Code_Lookup, LA_Name)), by.x='LA_Name', by.y='LA_Name', all.x = TRUE)
+
+altClaimantCount <- merge(altClaimantCount, subset(ageCategoryLookup, select = c(AgeCategory, Age)), by.x='Age', by.y='Age', all.x = TRUE)
+
+altClaimantCountAug19ToAug20Ages18To29 <- filter(altClaimantCount, AgeCategory %in% c(18,19,20,21,22,23,24,25,26,27,28,29) & Month %in% c("August 2019", "September 2019", "October 2019", "November 2019", "December 2019", "January 2020", "February 2020", "March 2020", "April 2020", "May 2020", "June 2020", "July 2020", "August 2020") & Alt_Claimant_Count != "..")
+```
+
+## Filter Population data to only include counts aged 18-29
+```{r}
+populationData2019 <- merge(populationData2019, subset(populationData2019UniqueLADF, select = c(LA_Name_Lookup, LA_Code)), by.x='Code', by.y='LA_Code', all.x = TRUE)
+
+populationData2019 <- merge(populationData2019, subset(ageCategoryLookup, select = c(AgeCategory, Age)), by.x='Age', by.y='Age', all.x = TRUE)
+
+populationData2019Ages18To29 <- filter(populationData2019, AgeCategory %in% c(18,19,20,21,22,23,24,25,26,27,28,29))
+```
+
+## Filter the 2011 census data data to only include counts aged 18-29
+```{r}
+censusData2011 <- merge(censusData2011, subset(censusData2011UniqueLADF, select = c(LA_Name_Lookup, LA_Code)), by.x='Code', by.y='LA_Code', all.x = TRUE)
+
+censusData2011 <- merge(censusData2011, subset(ageCategoryLookup, select = c(AgeCategory, Age)), by.x='Age', by.y='Age', all.x = TRUE)
+
+censusData2011Ages18To29 <- filter(censusData2011, AgeCategory %in% c(18,19,20,21,22,23,24,25,26,27,28,29))
+```
+
+## Filter the 2011 out of term census data data to only include counts aged 18-29
+```{r}
+censusOutOfTermData2011 <- merge(censusOutOfTermData2011, subset(censusData2011UniqueLADF, select = c(LA_Name_Lookup, LA_Code)), by.x='Code', by.y='LA_Code', all.x = TRUE)
+
+censusOutOfTermData2011 <- merge(censusOutOfTermData2011, subset(ageCategoryLookup, select = c(AgeCategory, Age)), by.x='Age', by.y='Age', all.x = TRUE)
+
+censusOutOfTermData2011Ages18To29 <- filter(censusOutOfTermData2011, AgeCategory %in% c(18,19,20,21,22,23,24,25,26,27,28,29))
+```
+
+## Combine data into a single table
+```{r}
+combinedDataTable <- merge(altClaimantCountAug19ToAug20Ages18To29, subset(populationData2019Ages18To29, select = c(LA_Name_Lookup, Population, AgeCategory)), by.x=c('LA_Name_Lookup','AgeCategory'), by.y=c('LA_Name_Lookup','AgeCategory'), all.x = TRUE)
+
+names(combinedDataTable)[names(combinedDataTable) == 'Population'] <- 'Population2019'
+
+combinedDataTable <- merge(combinedDataTable, subset(censusData2011Ages18To29, select = c(LA_Name_Lookup, Population, AgeCategory)), by.x=c('LA_Name_Lookup','AgeCategory'), by.y=c('LA_Name_Lookup','AgeCategory'), all.x = TRUE)
+
+names(combinedDataTable)[names(combinedDataTable) == 'Population'] <- 'CensusPopulation2011'
+
+combinedDataTable <- merge(combinedDataTable, subset(censusOutOfTermData2011Ages18To29, select = c(LA_Name_Lookup, Population, AgeCategory)), by.x=c('LA_Name_Lookup','AgeCategory'), by.y=c('LA_Name_Lookup','AgeCategory'), all.x = TRUE)
+
+names(combinedDataTable)[names(combinedDataTable) == 'Population'] <- 'CensusOutOfTermPopulation2011'
+```
+
+## Group and pivot data. Then order data to show the local authorities which have experienced the largest percentage point increase in claimants aged 18-29 as a share of the total non-student 18-29 population in that local authority.
+```{r}
+combinedDataTableGrouped = combinedDataTable %>% group_by(Month, LA_Name_Lookup)
+
+combinedDataTableGrouped <- summarise(combinedDataTableGrouped, Alt_Claimant_Count = sum(as.numeric(Alt_Claimant_Count)), Population2019 = sum(as.numeric(Population2019)), CensusPopulation2011 = sum(as.numeric(CensusPopulation2011)), CensusOutOfTermPopulation2011 = sum(as.numeric(CensusOutOfTermPopulation2011)) )
+
+combinedDataTableGrouped <- filter(combinedDataTableGrouped, !is.na(CensusPopulation2011))
+
+combinedDataTableGrouped$PercentageNonStudentClaimants <- round(combinedDataTableGrouped$Alt_Claimant_Count/ (combinedDataTableGrouped$Population2019-(combinedDataTableGrouped$CensusPopulation2011 - combinedDataTableGrouped$CensusOutOfTermPopulation2011)), digits = 3)
+
+combinedDataTableGroupedPivoted <- pivot_wider(combinedDataTableGrouped, id_cols = c(LA_Name_Lookup),  names_from = Month, values_from = PercentageNonStudentClaimants)
+
+combinedDataTableGroupedPivoted <- combinedDataTableGroupedPivoted[, c("LA_Name_Lookup", "September 2019", "October 2019", "November 2019", "December 2019", "January 2020", "February 2020", "March 2020", "April 2020", "May 2020", "June 2020", "July 2020", "August 2020")]
+
+combinedDataTableGroupedPivoted$March_To_August_Difference <- combinedDataTableGroupedPivoted$'August 2020' - combinedDataTableGroupedPivoted$'March 2020'
+
+combinedDataTableGroupedPivoted <- combinedDataTableGroupedPivoted[order(-combinedDataTableGroupedPivoted$'March_To_August_Difference'),]
+
+head(subset(combinedDataTableGroupedPivoted, select = c("LA_Name_Lookup", "March 2020", "August 2020", "March_To_August_Difference")), 50)
+
+```
+
+
+
