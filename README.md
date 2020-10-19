@@ -18,11 +18,11 @@ https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/popul
 
 ### For 2011 census population by age and local authority data
 
-The file was downloaded from NOMIS and has the table code 'QS103EW'.
+The file was downloaded from [NOMIS](http://www.nomisweb.co.uk/) and has the table code 'QS103EW'.
 
 ### For 2011 census out-of-term population by age and local authority data
 
-The file was downloaded from NOMIS and has the table code 'OT1117EW'.
+The file was downloaded from [NOMIS](http://www.nomisweb.co.uk/) and has the table code 'OT1117EW'.
 
 ### Process notes:
 
